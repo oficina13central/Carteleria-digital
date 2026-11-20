@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Globe, LayoutGrid, LogOut, Monitor, Tv } from 'lucide-react';
+import { Globe, LayoutGrid, LogOut, Monitor, Tv, Users } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import type { UserRoleType } from '@/types/database';
 
@@ -67,6 +67,17 @@ export function AdminNavbar({
                 >
                   <Globe className="w-4 h-4" />
                   Contenido Global
+                </Link>
+                <Link
+                  href="/admin/usuarios"
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    pathname.startsWith('/admin/usuarios')
+                      ? 'bg-indigo-600 text-white'
+                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                  }`}
+                >
+                  <Users className="w-4 h-4" />
+                  Usuarios
                 </Link>
               </>
             )}

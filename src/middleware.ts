@@ -60,9 +60,11 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(loginUrl);
     }
 
-    // Solo Super Admin puede acceder a /admin/monitoreo y /admin/global
+    // Solo Super Admin puede acceder a /admin/monitoreo, /admin/global y /admin/usuarios
     if (
-      (pathname.startsWith('/admin/monitoreo') || pathname.startsWith('/admin/global')) &&
+      (pathname.startsWith('/admin/monitoreo') ||
+        pathname.startsWith('/admin/global') ||
+        pathname.startsWith('/admin/usuarios')) &&
       roleRow.rol !== 'superadmin'
     ) {
       const branchUrl = request.nextUrl.clone();
