@@ -112,11 +112,14 @@ export function SignagePlayer({ codigo }: SignagePlayerProps) {
       const remoteScreen = payload.screen as Pantalla;
       const remoteItems = (payload.items as MediaItem[]) || [];
 
-      setScreen(remoteScreen);
-      setAllItems(remoteItems);
-      saveLocalPlaylistSnapshot(cleanCode, remoteScreen, remoteItems);
+      if (
+        lastVersionRef.current !== remoteScreen.version_playlist ||
+        Object.keys(blobUrlsRef.current).length === 0
+      ) {
+        setScreen(remoteScreen);
+        setAllItems(remoteItems);
+        saveLocalPlaylistSnapshot(cleanCode, remoteScreen, remoteItems);
 
-      if (lastVersionRef.current !== remoteScreen.version_playlist || Object.keys(blobUrlsRef.current).length === 0) {
         const { blobUrls: nextMap, usedOfflineFallback } =
           await syncMediaToCacheAndGetBlobUrls(remoteItems, blobUrlsRef.current);
         blobUrlsRef.current = nextMap;
@@ -200,6 +203,19 @@ export function SignagePlayer({ codigo }: SignagePlayerProps) {
     setActiveLayer((prev) => (prev === 0 ? 1 : 0));
   }, [activeItems.length]);
 
+  const playbackKey = currentItem
+    ? `${currentItem.id}:${currentIndex}:${activeLayer}`
+    : null;
+  const itemTipo = currentItem?.tipo ?? null;
+  const itemDuracion = currentItem?.duracion_seg ?? 10;
+
+  // Telemetría al cambiar de ítem
+  useEffect(() => {
+    if (!currentItem || !screen?.sucursal_id) return;
+    sendTelemetry(currentItem, networkState);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentItem?.id, networkState, screen?.sucursal_id]);
+
   // Control de reproducción del ítem actual (imágenes por timer, videos por onEnded + fallback)
   useEffect(() => {
     if (advanceTimerRef.current) {
@@ -207,12 +223,9 @@ export function SignagePlayer({ codigo }: SignagePlayerProps) {
       advanceTimerRef.current = null;
     }
 
-    if (!currentItem) return;
+    if (!playbackKey || !itemTipo) return;
 
-    // Enviar telemetría al cambiar de ítem
-    sendTelemetry(currentItem, networkState);
-
-    if (currentItem.tipo === 'video') {
+    if (itemTipo === 'video') {
       const activeVideo = videoRefs.current[activeLayer];
       const preloadVideo = videoRefs.current[activeLayer === 0 ? 1 : 0];
 
@@ -224,7 +237,10 @@ export function SignagePlayer({ codigo }: SignagePlayerProps) {
       if (activeVideo) {
         activeVideo.currentTime = 0;
         activeVideo.play().catch(() => {
-          // Si el navegador bloquea o falla el codec, avanzar tras fallback
+          // Si el navegador bloquea o falla el codec, avanzar tras breve espera
+          advanceTimerRef.current = setTimeout(() => {
+            advanceToNext();
+          }, 2000);
         });
       }
 
@@ -233,7 +249,7 @@ export function SignagePlayer({ codigo }: SignagePlayerProps) {
         advanceToNext();
       }, 10 * 60 * 1000);
     } else {
-      const durationMs = Math.max(2, currentItem.duracion_seg || 10) * 1000;
+      const durationMs = Math.max(2, itemDuracion) * 1000;
       advanceTimerRef.current = setTimeout(() => {
         advanceToNext();
       }, durationMs);
@@ -244,7 +260,7 @@ export function SignagePlayer({ codigo }: SignagePlayerProps) {
         clearTimeout(advanceTimerRef.current);
       }
     };
-  }, [currentItem, activeLayer, advanceToNext, sendTelemetry, networkState]);
+  }, [playbackKey, activeLayer, itemTipo, itemDuracion, advanceToNext]);
 
   // Telemetría periódica cada 60 segundos
   useEffect(() => {
