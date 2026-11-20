@@ -28,9 +28,10 @@ export function SignagePlayer({ codigo }: SignagePlayerProps) {
   const lastVersionRef = useRef<number>(-1);
   const [networkState, setNetworkState] = useState<EstadoRed>('online');
 
-  // Doble buffer: capa 0 y capa 1
+  // Doble buffer: capa 0 y capa 1 con índices independientes para no cambiar la capa saliente durante la transición
   const [activeLayer, setActiveLayer] = useState<0 | 1>(0);
   const [currentIndex, setCurrentIndex] = useState<number>(0);
+  const [layerIndices, setLayerIndices] = useState<[number, number]>([0, 1]);
   const [isPortraitRotated, setIsPortraitRotated] = useState(false);
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
 
@@ -39,6 +40,7 @@ export function SignagePlayer({ codigo }: SignagePlayerProps) {
     null,
   ]);
   const advanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const preloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Ítems vigentes en el instante actual
   const activeItems = useMemo(() => {
@@ -47,14 +49,12 @@ export function SignagePlayer({ codigo }: SignagePlayerProps) {
 
   const currentItem =
     activeItems.length > 0 ? activeItems[currentIndex % activeItems.length] : null;
-  const nextItem =
-    activeItems.length > 1
-      ? activeItems[(currentIndex + 1) % activeItems.length]
-      : currentItem;
 
-  // Asignación de ítem por capa para evitar recargas innecesarias
-  const layer0Item = activeLayer === 0 ? currentItem : nextItem;
-  const layer1Item = activeLayer === 1 ? currentItem : nextItem;
+  // Asignación de ítem por capa sin reemplazar la capa saliente hasta que termine la transición
+  const layer0Item =
+    activeItems.length > 0 ? activeItems[layerIndices[0] % activeItems.length] : null;
+  const layer1Item =
+    activeItems.length > 0 ? activeItems[layerIndices[1] % activeItems.length] : null;
 
   // Detectar si el TV Box está en landscape pero la pantalla configurada es vertical
   useEffect(() => {
@@ -199,9 +199,36 @@ export function SignagePlayer({ codigo }: SignagePlayerProps) {
 
   const advanceToNext = useCallback(() => {
     if (activeItems.length <= 1) return;
-    setCurrentIndex((prev) => (prev + 1) % activeItems.length);
-    setActiveLayer((prev) => (prev === 0 ? 1 : 0));
-  }, [activeItems.length]);
+
+    const nextIdx = (currentIndex + 1) % activeItems.length;
+    const outgoingLayer = activeLayer;
+    const incomingLayer: 0 | 1 = activeLayer === 0 ? 1 : 0;
+    const preloadIdx = (nextIdx + 1) % activeItems.length;
+    const transitionDelayMs =
+      (screen?.transicion === 'none' ? 0 : screen?.duracion_transicion_ms ?? 700) + 80;
+
+    if (preloadTimerRef.current) {
+      clearTimeout(preloadTimerRef.current);
+    }
+
+    // Asegurar que la capa entrante tenga el ítem siguiente y mantener la saliente intacta
+    setLayerIndices((prev) => {
+      const next: [number, number] = [...prev] as [number, number];
+      next[incomingLayer] = nextIdx;
+      return next;
+    });
+    setCurrentIndex(nextIdx);
+    setActiveLayer(incomingLayer);
+
+    // Recién cuando la capa saliente sea 100% invisible, precargar el siguiente ítem en ella
+    preloadTimerRef.current = setTimeout(() => {
+      setLayerIndices((prev) => {
+        const next: [number, number] = [...prev] as [number, number];
+        next[outgoingLayer] = preloadIdx;
+        return next;
+      });
+    }, transitionDelayMs);
+  }, [activeItems.length, currentIndex, activeLayer, screen?.transicion, screen?.duracion_transicion_ms]);
 
   const playbackKey = currentItem
     ? `${currentItem.id}:${currentIndex}:${activeLayer}`
