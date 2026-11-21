@@ -11,18 +11,14 @@ android {
         applicationId = "com.carteleria.tvbox"
         minSdk = 21
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.0.1"
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
+            isMinifyEnabled = false
+            isShrinkResources = false
             // Firma debug para permitir instalación directa (sideload) en cualquier TV Box sin Play Store
             signingConfig = signingConfigs.getByName("debug")
         }

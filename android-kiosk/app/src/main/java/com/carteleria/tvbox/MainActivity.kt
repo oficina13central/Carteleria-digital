@@ -7,12 +7,16 @@ import android.content.Context
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.view.WindowManager
+import android.webkit.CookieManager
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -23,6 +27,8 @@ class MainActivity : Activity() {
 
     private lateinit var webView: WebView
     private var lastBackPressMs: Long = 0L
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var retryRunnable: Runnable? = null
 
     companion object {
         private const val PREFS_NAME = "carteleria_tvbox_prefs"
@@ -48,11 +54,21 @@ class MainActivity : Activity() {
                 javaScriptEnabled = true
                 domStorageEnabled = true
                 databaseEnabled = true
+                allowFileAccess = true
+                allowContentAccess = true
+                loadsImagesAutomatically = true
                 mediaPlaybackRequiresUserGesture = false
                 useWideViewPort = true
                 loadWithOverviewMode = true
                 cacheMode = WebSettings.LOAD_DEFAULT
-                mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+                mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+            }
+
+            CookieManager.getInstance().apply {
+                setAcceptCookie(true)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    setAcceptThirdPartyCookies(this@apply, true)
+                }
             }
 
             webChromeClient = WebChromeClient()
@@ -70,6 +86,35 @@ class MainActivity : Activity() {
                         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                         prefs.edit().putString(KEY_SAVED_URL, url).apply()
                     }
+                }
+
+                override fun onReceivedError(
+                    view: WebView?,
+                    request: WebResourceRequest?,
+                    error: WebResourceError?
+                ) {
+                    super.onReceivedError(view, request, error)
+                    if (request?.isForMainFrame != true) return
+
+                    val desc = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        error?.description?.toString() ?: "Error de red"
+                    } else {
+                        "Error de conexión"
+                    }
+
+                    // Si ocurre ERR_CACHE_MISS, limpiar caché HTTP de WebView y reintentar
+                    if (desc.contains("ERR_CACHE_MISS", ignoreCase = true)) {
+                        view?.clearCache(true)
+                    }
+
+                    retryRunnable?.let { mainHandler.removeCallbacks(it) }
+                    val runnable = Runnable {
+                        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                        val urlToLoad = prefs.getString(KEY_SAVED_URL, DEFAULT_URL) ?: DEFAULT_URL
+                        view?.loadUrl(urlToLoad)
+                    }
+                    retryRunnable = runnable
+                    mainHandler.postDelayed(runnable, 3500)
                 }
             }
         }
@@ -90,22 +135,26 @@ class MainActivity : Activity() {
 
     @Suppress("DEPRECATION")
     private fun applyFullscreen() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.setDecorFitsSystemWindows(false)
-            window.insetsController?.let { controller ->
-                controller.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
-                controller.systemBarsBehavior =
-                    WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                window.setDecorFitsSystemWindows(false)
+                window.insetsController?.let { controller ->
+                    controller.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
+                    controller.systemBarsBehavior =
+                        WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                }
+            } else {
+                window.decorView.systemUiVisibility = (
+                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                        or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                        or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                        or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                        or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                        or View.SYSTEM_UI_FLAG_FULLSCREEN
+                    )
             }
-        } else {
-            window.decorView.systemUiVisibility = (
-                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                    or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                    or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                    or View.SYSTEM_UI_FLAG_FULLSCREEN
-                )
+        } catch (_: Exception) {
+            // Ignorar si el dispositivo no soporta algún flag de pantalla completa
         }
     }
 
@@ -136,6 +185,7 @@ class MainActivity : Activity() {
     private fun showRemoteMenu() {
         val options = arrayOf(
             "Recargar pantalla",
+            "Limpiar caché y recargar",
             "Restablecer código de vinculación",
             "Cerrar aplicación"
         )
@@ -146,12 +196,16 @@ class MainActivity : Activity() {
                 when (which) {
                     0 -> webView.reload()
                     1 -> {
+                        webView.clearCache(true)
+                        webView.reload()
+                    }
+                    2 -> {
                         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                         prefs.edit().remove(KEY_SAVED_URL).apply()
                         webView.evaluateJavascript("localStorage.removeItem('signage_device_code');", null)
                         webView.loadUrl(DEFAULT_URL)
                     }
-                    2 -> finishAffinity()
+                    3 -> finishAffinity()
                 }
             }
             .setNegativeButton("Cancelar", null)
@@ -159,6 +213,7 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        retryRunnable?.let { mainHandler.removeCallbacks(it) }
         webView.destroy()
         super.onDestroy()
     }
