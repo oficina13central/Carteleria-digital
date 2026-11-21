@@ -64,11 +64,10 @@ class MainActivity : Activity() {
                 mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
             }
 
-            CookieManager.getInstance().apply {
-                setAcceptCookie(true)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    setAcceptThirdPartyCookies(this@apply, true)
-                }
+            val cookieManager = CookieManager.getInstance()
+            cookieManager.setAcceptCookie(true)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                cookieManager.setAcceptThirdPartyCookies(this, true)
             }
 
             webChromeClient = WebChromeClient()
