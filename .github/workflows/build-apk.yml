@@ -37,19 +37,19 @@ jobs:
         run: gradle assembleRelease --no-daemon
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/release/app-release.apk carteleria-tvbox.apk
+        run: cp app/build/outputs/apk/release/app-release.apk vlenchu-tvbox.apk
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: carteleria-tvbox-apk
-          path: android-kiosk/carteleria-tvbox.apk
+          name: vlenchu-tvbox-apk
+          path: android-kiosk/vlenchu-tvbox.apk
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: tvbox-latest
-          name: Cartelería TV Box (APK)
+          name: Vlenchu - Reproductor TV Box (APK)
           body: |
-            App Android liviana para TV Box (pantalla completa, autoarranque, cierre con doble toque de ATRÁS o botón MENÚ del control remoto).
-          files: android-kiosk/carteleria-tvbox.apk
+            App Android liviana **Vlenchu** para TV Box (pantalla completa, autoarranque, cierre con doble toque de ATRÁS o botón MENÚ del control remoto).
+          files: android-kiosk/vlenchu-tvbox.apk

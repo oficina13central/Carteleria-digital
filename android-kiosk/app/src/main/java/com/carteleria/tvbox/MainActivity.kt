@@ -141,7 +141,7 @@ class MainActivity : Activity() {
         )
 
         AlertDialog.Builder(this)
-            .setTitle("Cartelería TV")
+            .setTitle("Vlenchu")
             .setItems(options) { _, which ->
                 when (which) {
                     0 -> webView.reload()

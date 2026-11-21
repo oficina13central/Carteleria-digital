@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "CarteleriaTVBox"
+rootProject.name = "Vlenchu"
 include(":app")
