@@ -96,6 +96,7 @@ export function MediaUploader({
       });
 
       onUploaded(created);
+      window.dispatchEvent(new Event('storage-updated'));
       setSelectedFile(null);
       setTitulo('');
       setFechaInicio('');

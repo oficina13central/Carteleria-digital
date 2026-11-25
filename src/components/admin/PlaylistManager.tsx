@@ -139,6 +139,7 @@ export function PlaylistManager({
       }
 
       onItemsChanged(items.filter((i) => i.id !== item.id));
+      window.dispatchEvent(new Event('storage-updated'));
     }
     setBusyId(null);
   }

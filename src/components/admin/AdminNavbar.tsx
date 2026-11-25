@@ -2,9 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Globe, LayoutGrid, LogOut, Monitor, Tv, Users } from 'lucide-react';
+import { Globe, HardDrive, LayoutGrid, LogOut, Monitor, Tv, Users } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import type { UserRoleType } from '@/types/database';
+import { StorageAlertBanner } from './StorageAlertBanner';
+import { StorageUsageMonitor } from './StorageUsageMonitor';
+import { useStorageStatus } from './useStorageStatus';
 
 interface AdminNavbarProps {
   role: UserRoleType;
@@ -21,6 +24,7 @@ export function AdminNavbar({
 }: AdminNavbarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const { statusData, autoNotice, clearAutoNotice, loading, alertKey } = useStorageStatus();
 
   async function handleSignOut() {
     const supabase = createClient();
@@ -30,6 +34,7 @@ export function AdminNavbar({
   }
 
   return (
+    <>
     <header className="sticky top-0 z-30 bg-slate-900/90 backdrop-blur border-b border-slate-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
         <div className="flex items-center gap-6">
@@ -79,6 +84,17 @@ export function AdminNavbar({
                   <Users className="w-4 h-4" />
                   Usuarios
                 </Link>
+                <Link
+                  href="/admin/storage"
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    pathname.startsWith('/admin/storage')
+                      ? 'bg-indigo-600 text-white'
+                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                  }`}
+                >
+                  <HardDrive className="w-4 h-4" />
+                  Storage
+                </Link>
               </>
             )}
 
@@ -99,6 +115,8 @@ export function AdminNavbar({
         </div>
 
         <div className="flex items-center gap-3">
+          <StorageUsageMonitor statusData={statusData} loading={loading} role={role} />
+
           <span
             className={`hidden md:inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
               role === 'superadmin'
@@ -124,5 +142,13 @@ export function AdminNavbar({
         </div>
       </div>
     </header>
+    <StorageAlertBanner
+      role={role}
+      statusData={statusData}
+      autoNotice={autoNotice}
+      onClearAutoNotice={clearAutoNotice}
+      alertKey={alertKey}
+    />
+    </>
   );
 }
